@@ -27,34 +27,7 @@ public class MainFrame extends JFrame {
 
         setVisible(true);
 
-        // Dodanie WindowFocusListener, aby monitorować utratę fokusu
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowDeactivated(WindowEvent e) {
-                SwingUtilities.invokeLater(() -> {
-                    System.out.println("RESET FOCUS (Deactivated)");
-                    setAlwaysOnTop(false);
-                    setAlwaysOnTop(true);
-                    toFront();
-                    requestFocusInWindow();
-                });
-            }
-        });
-        addWindowFocusListener(new WindowAdapter() {
-            @Override
-            public void windowLostFocus(WindowEvent e) {
-                // Use a Timer to delay focus resetting
-                Timer timer = new Timer(50, event -> {
-                    System.out.println("RESET FOCUS");
-                    setAlwaysOnTop(false);
-                    setAlwaysOnTop(true);
-                    toFront();
-                    requestFocusInWindow();  // Use requestFocusInWindow instead of requestFocus
-                });
-                timer.setRepeats(false);  // Run only once
-                timer.start();
-            }
-        });
+
 
 
     }
