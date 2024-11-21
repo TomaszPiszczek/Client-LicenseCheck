@@ -3,32 +3,20 @@ package com.example.clientlicensecheck.ui;
 import com.example.clientlicensecheck.CardPanelManager;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 
 public class MainFrame extends JFrame {
     public MainFrame(CardPanelManager cardPanelManager) {
         super("Klient");
-        setAlwaysOnTop(true);
-        setUndecorated(true);
 
         // Dodanie panelu kart do ramki
         add(cardPanelManager.getCardPanel());
 
-        // Konfiguracja ramki
-        setSize(120, 120);
+        // Konfiguracja trybu pełnoekranowegox
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setExtendedState(JFrame.MAXIMIZED_BOTH); // Maksymalizacja na cały ekran
+        setUndecorated(true); // Usunięcie dekoracji ramki
 
-        // Ustawienie lokalizacji ramki w prawym dolnym rogu ekranu
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        int x = screenSize.width - getWidth();  // x = szerokość ekranu - szerokość okna
-        int y = screenSize.height - getHeight(); // y = wysokość ekranu - wysokość okna
-        setLocation(x, y);
-
+        // Ustawienie lokalizacji ramki i widoczności
         setVisible(true);
-
-
-
-
     }
 }
