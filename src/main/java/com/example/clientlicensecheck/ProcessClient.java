@@ -6,7 +6,7 @@ import com.example.clientlicensecheck.ui.StatusPanel;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.Scanner;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 public class ProcessClient {
@@ -14,67 +14,124 @@ public class ProcessClient {
 
     public static void main(String[] args) {
         CardPanelManager cardPanelManager = new CardPanelManager();
-        Scanner scanner = new Scanner(System.in);
+        String ipAddressA;
+        String ipAddressB;
 
-        System.out.print("Enter the first server IP address: ");
-        String ipAddressA = scanner.nextLine();
-
-        System.out.print("Enter the second server IP address: ");
-        String ipAddressB = scanner.nextLine();
+        if (args.length >= 2) {
+            ipAddressA = args[0];
+            ipAddressB = args[1];
+        } else {
+            ipAddressA = "192.168.1.46";
+            ipAddressB = "192.168.1.28";
+        }
 
         ServerConnection serverConnectionA = new ServerConnection(ipAddressA, 1099);
         ServerConnection serverConnectionB = new ServerConnection(ipAddressB, 1099);
 
-        ButtonPanel buttonPanel = new ButtonPanel(e -> {
-        });
+        ButtonPanel buttonPanel = new ButtonPanel(e -> {});
+
         ButtonPanel finalButtonPanel = buttonPanel;
+
         buttonPanel = new ButtonPanel(e -> {
             finalButtonPanel.setButtonVisible(false);
             cardPanelManager.showPanel("loading");
+            System.out.println("SENDED CHECK A: " + ipAddressA);
+            System.out.println("SENDED CHECK B: " + ipAddressB);
 
-            SwingWorker<String, Void> worker = new SwingWorker<>() {
-                @Override
-                protected String doInBackground() {
-                    // Check both servers
-                    String responseA = serverConnectionA.connect();
-                    String responseB = serverConnectionB.connect();
+            // Wysyłanie żądań "CHECK" równocześnie
+            CompletableFuture<String> responseA = CompletableFuture
+                    .supplyAsync(() -> serverConnectionA.sendCommand("CHECK"))
+                    .orTimeout(2, TimeUnit.SECONDS) // Ustawienie timeoutu na 5 sekund
+                    .exceptionally(ex -> {
+                        System.out.println("ERROR");
 
-                    // Determine the final response
-                    if ("true".equals(responseA) || "true".equals(responseB)) {
-                        return "true";
-                    } else {
-                        return "false";
+                        return "error";
+                    });
+
+            CompletableFuture<String> responseB = CompletableFuture
+                    .supplyAsync(() -> serverConnectionB.sendCommand("CHECK"))
+                    .orTimeout(2, TimeUnit.SECONDS) // Ustawienie timeoutu na 5 sekund
+                    .exceptionally(ex -> {
+                        System.out.println("ERROR");
+                        return "error";
+                    });
+
+            // Przetwarzanie wyników "CHECK"
+            CompletableFuture.allOf(responseA, responseB).thenRun(() -> {
+                try {
+                    String resultA = responseA.get();
+                    String resultB = responseB.get();
+                    System.out.println(resultA + ipAddressA + "\n" + resultB + ipAddressB);
+                    if(resultA.equals("error") || resultB.equals("error")) {
+                        updateUI("Błąd<br>połączenia", Color.ORANGE, cardPanelManager, finalButtonPanel);
+                        return;
                     }
-                }
+                    if ("true".equals(resultA) && "true".equals(resultB)) {
+                        // Jeśli oba zwróciły "true", wysyłamy "SHUTDOWN" równocześnie z limitem czasu
+                        CompletableFuture<String> shutdownA = CompletableFuture.supplyAsync(() -> serverConnectionA.sendCommand("SHUTDOWN"))
+                                .orTimeout(10, TimeUnit.SECONDS)
+                                .exceptionally(ex -> {
+                                    if (ex instanceof TimeoutException) {
+                                        logger.warning("Shutdown A command timed out.");
+                                        updateUI("BRAK ODPOWIEDZI", Color.ORANGE, cardPanelManager, finalButtonPanel);
+                                        return null;
+                                    }
+                                    return "false";
+                                });
 
-                @Override
-                protected void done() {
-                    try {
-                        String response = get();
-                        StatusPanel statusPanel = new StatusPanel();
+                        CompletableFuture<String> shutdownB = CompletableFuture.supplyAsync(() -> serverConnectionB.sendCommand("SHUTDOWN"))
+                                .orTimeout(10, TimeUnit.SECONDS)
+                                .exceptionally(ex -> {
+                                    if (ex instanceof TimeoutException) {
+                                        logger.warning("Shutdown B command timed out.");
+                                        updateUI("BRAK ODPOWIEDZI", Color.ORANGE, cardPanelManager, finalButtonPanel);
+                                        return null;
+                                    }
+                                    return "false"; // Zwracamy wartość domyślną, gdy wystąpi TimeoutException
+                                });
 
-                        if ("true".equals(response)) {
-                            statusPanel.updateStatus("OK", Color.GREEN);
-                        } else {
-                            statusPanel.updateStatus("ZACZEKAJ", Color.RED);
-                        }
-
-                        cardPanelManager.addPanel(statusPanel, "status");
-                        cardPanelManager.showPanel("status");
-
-                        // Timer for 3 seconds
-                        Timer timer = new Timer(3000, e1 -> {
-                            cardPanelManager.showPanel("button");
-                            finalButtonPanel.setButtonVisible(true);
+                        CompletableFuture.anyOf(shutdownA, shutdownB).thenAccept(response -> {
+                            // Jeśli pierwszy z serwerów zwróci "true" na "SHUTDOWN", kończymy natychmiast
+                            try {
+                                if ("true".equals(response)) {
+                                    if ("true".equals(shutdownA.getNow("false"))) {
+                                        System.out.println("SENDED CLOSE B");
+                                        serverConnectionB.sendCommand("DIALOG");
+                                        serverConnectionB.sendCommand("CLOSE");
+                                    } else {
+                                        System.out.println("SENDED CLOSE A");
+                                        serverConnectionA.sendCommand("DIALOG");
+                                        serverConnectionA.sendCommand("CLOSE");
+                                    }
+                                    updateUI("OK", Color.GREEN, cardPanelManager, finalButtonPanel);
+                                } else {
+                                    // Jeśli pierwszy zwróci "false", czekamy na drugi
+                                    CompletableFuture.allOf(shutdownA, shutdownB).thenRun(() -> {
+                                        if ("false".equals(shutdownA.join()) && "false".equals(shutdownB.join())) {
+                                            updateUI("ZACZEKAJ", Color.RED, cardPanelManager, finalButtonPanel);
+                                        }
+                                        if ("true".equals(shutdownA.join()) || "true".equals(shutdownB.join())) {
+                                            updateUI("OK", Color.GREEN, cardPanelManager, finalButtonPanel);
+                                        }
+                                        serverConnectionA.sendCommand("DIALOG");
+                                        serverConnectionA.sendCommand("CLOSE");
+                                        serverConnectionB.sendCommand("DIALOG");
+                                        serverConnectionB.sendCommand("CLOSE");
+                                    });
+                                }
+                            } catch (Exception ex) {
+                                logger.severe("Error in server communication: " + ex.getMessage());
+                                updateUI("Błąd<br>połączenia", Color.ORANGE, cardPanelManager, finalButtonPanel);
+                            }
                         });
-                        timer.setRepeats(false);
-                        timer.start();
-                    } catch (Exception ex) {
-                        logger.severe("Error in SwingWorker: " + ex.getMessage());
+                    } else {
+                        updateUI("OK", Color.GREEN, cardPanelManager, finalButtonPanel);
                     }
+                } catch (Exception ex) {
+                    logger.severe("Error in concurrent server connection: " + ex.getMessage());
+                    updateUI("Błąd<br>połączenia", Color.ORANGE, cardPanelManager, finalButtonPanel);
                 }
-            };
-            worker.execute();
+            });
         });
 
         StatusPanel loadingPanel = new StatusPanel();
@@ -83,7 +140,22 @@ public class ProcessClient {
         cardPanelManager.addPanel(buttonPanel, "button");
         cardPanelManager.addPanel(loadingPanel, "loading");
 
-        // Initialize main window
         new MainFrame(cardPanelManager);
+    }
+
+    private static void updateUI(String status, Color color, CardPanelManager cardPanelManager, ButtonPanel finalButtonPanel) {
+        SwingUtilities.invokeLater(() -> {
+            StatusPanel statusPanel = new StatusPanel();
+            statusPanel.updateStatus(status, color);
+            cardPanelManager.addPanel(statusPanel, "status");
+            cardPanelManager.showPanel("status");
+
+            Timer timer = new Timer(3000, e -> {
+                cardPanelManager.showPanel("button");
+                finalButtonPanel.setButtonVisible(true);
+            });
+            timer.setRepeats(false);
+            timer.start();
+        });
     }
 }
