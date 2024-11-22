@@ -10,7 +10,7 @@ public class ButtonPanel extends JPanel {
     public ButtonPanel(ActionListener listener) {
         button = new JButton("TEST");
         button.setPreferredSize(new Dimension(80, 80));
-        button.setFont(new Font("Arial", Font.BOLD, 24));
+        button.setFont(new Font("Arial", Font.BOLD, 100));
         button.setFocusable(false);
         button.addActionListener(listener);
 
