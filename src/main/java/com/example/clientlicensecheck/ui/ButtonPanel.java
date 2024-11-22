@@ -6,11 +6,10 @@ import java.awt.event.ActionListener;
 
 public class ButtonPanel extends JPanel {
     private JButton button;
-
     public ButtonPanel(ActionListener listener) {
         button = new JButton("TEST");
         button.setPreferredSize(new Dimension(80, 80));
-        button.setFont(new Font("Arial", Font.BOLD, 100));
+        button.setFont(new Font("Arial", Font.BOLD, 250));
         button.setFocusable(false);
         button.addActionListener(listener);
 
