@@ -69,7 +69,7 @@ public class ProcessClient {
                     if ("true".equals(resultA) && "true".equals(resultB)) {
                         // Jeśli oba zwróciły "true", wysyłamy "SHUTDOWN" równocześnie z limitem czasu
                         CompletableFuture<String> shutdownA = CompletableFuture.supplyAsync(() -> serverConnectionA.sendCommand("SHUTDOWN"))
-                                .orTimeout(10, TimeUnit.SECONDS)
+                                .orTimeout(20, TimeUnit.SECONDS)
                                 .exceptionally(ex -> {
                                     if (ex instanceof TimeoutException) {
                                         logger.warning("Shutdown A command timed out.");
@@ -80,7 +80,7 @@ public class ProcessClient {
                                 });
 
                         CompletableFuture<String> shutdownB = CompletableFuture.supplyAsync(() -> serverConnectionB.sendCommand("SHUTDOWN"))
-                                .orTimeout(10, TimeUnit.SECONDS)
+                                .orTimeout(20, TimeUnit.SECONDS)
                                 .exceptionally(ex -> {
                                     if (ex instanceof TimeoutException) {
                                         logger.warning("Shutdown B command timed out.");
