@@ -21,7 +21,7 @@ public class StatusPanel extends JPanel {
         // Zmiana stylu wiadomości na HTML, żeby lepiej wyglądała na dużym ekranie
         String htmlMessage = "<html><div style='text-align: center;'>" + message.replace(" ", "<br>") + "</div></html>";
         statusLabel.setText(htmlMessage);
-        statusLabel.setFont(new Font("Arial", Font.BOLD, 120)); // Ustawienie czcionki na bardzo dużą
+        statusLabel.setFont(new Font("Arial", Font.BOLD, 105)); // Ustawienie czcionki na bardzo dużą
 
         // Zmiana tła panelu
         setBackground(color);
